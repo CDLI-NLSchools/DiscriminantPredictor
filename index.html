@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discriminant Predictor · Math 2201 Unit 3</title>
+<style>
+  :root {
+    --ink: #1c2733;
+    --muted: #54657a;
+    --accent: #2563eb;
+    --accent-dark: #1d4fc4;
+    --line: #c9d6e4;
+    --good: #15803d;
+    --good-bg: #e7f6ec;
+    --bad: #b91c1c;
+    --bad-bg: #fdecec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px 12px 32px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #edf2f7;
+    color: var(--ink);
+  }
+  .app { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 14px; }
+  h1 { font-size: 1.75rem; margin: 4px 0 2px; }
+  .subtitle { margin: 0; color: var(--muted); font-size: 0.98rem; font-weight: 600; letter-spacing: 0.01em; }
+  .instructions { margin: 8px auto 0; max-width: 52ch; color: var(--ink); font-size: 1rem; }
+  .card {
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(20, 40, 70, 0.10);
+    padding: 20px 18px 16px;
+  }
+  .equation {
+    text-align: center;
+    font-size: clamp(1.45rem, 5.2vw, 2.05rem);
+    font-weight: 650;
+    min-height: 2.6em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px 0 14px;
+  }
+  .answers { display: flex; flex-wrap: wrap; gap: 10px; }
+  .answer-btn {
+    flex: 1 1 150px;
+    padding: 12px 10px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ink);
+    background: #f6f9fc;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .answer-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .answer-btn:disabled { cursor: default; opacity: 0.85; }
+  .answer-btn.correct { background: var(--good-bg); border-color: var(--good); color: var(--good); opacity: 1; }
+  .answer-btn.wrong { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); opacity: 1; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .feedback { border-top: 1px solid #e3eaf2; margin-top: 16px; padding-top: 12px; }
+  .feedback:focus { outline: none; }
+  .verdict { font-size: 1.12rem; font-weight: 700; margin: 0 0 8px; }
+  .verdict.good { color: var(--good); }
+  .verdict.bad { color: var(--bad); }
+  .standard-line { margin: 0 0 8px; font-size: 1.02rem; }
+  .disc-line {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    background: #f2f6fb;
+    border-radius: 8px;
+    padding: 9px 12px;
+  }
+  .conclusion { margin: 0 0 6px; font-size: 1.05rem; }
+  .graph { text-align: center; margin-top: 8px; }
+  .graph svg { width: min(90vw, 420px); height: auto; }
+  .grid { stroke: #e4ecf4; stroke-width: 1; }
+  .axis { stroke: #8fa3b8; stroke-width: 1.5; }
+  .tick { stroke: #8fa3b8; stroke-width: 1; }
+  .tick-label { font-size: 11px; fill: #5b6b7f; }
+  .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+  .pt-intercept { fill: #dc2626; }
+  .pt-vertex { fill: #059669; }
+  .pt-ring { fill: none; stroke: #059669; stroke-width: 2; }
+  .pt-label { font-size: 11.5px; font-weight: 700; fill: #33475e; }
+  .controls { text-align: center; margin-top: 16px; }
+  #nextBtn {
+    padding: 12px 26px;
+    font-size: 1.05rem;
+    font-weight: 650;
+    color: #ffffff;
+    background: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  #nextBtn:hover:not(:disabled) { background: var(--accent-dark); }
+  #nextBtn:disabled { background: #a9bedd; border-color: #a9bedd; cursor: default; }
+  .score { text-align: center; color: var(--muted); font-weight: 600; margin: 14px 0 2px; }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>Discriminant Predictor</h1>
+    <p class="subtitle">Math 2201 · Unit 3 — Quadratic Equations</p>
+    <p class="instructions">Look at the equation and predict how many real roots it has — then check your prediction.</p>
+  </header>
+
+  <section class="card" aria-label="Discriminant Predictor practice">
+    <div id="equation" class="equation"></div>
+
+    <div class="answers" role="group" aria-label="Your prediction">
+      <button type="button" class="answer-btn" data-case="2">2 real roots</button>
+      <button type="button" class="answer-btn" data-case="1">1 real root</button>
+      <button type="button" class="answer-btn" data-case="0">0 real roots</button>
+    </div>
+
+    <div id="feedback" class="feedback" hidden tabindex="-1">
+      <p id="verdict" class="verdict"></p>
+      <p id="standardLine" class="standard-line" hidden></p>
+      <p id="discLine" class="disc-line"></p>
+      <p id="conclusion" class="conclusion"></p>
+      <div id="graph" class="graph"></div>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="nextBtn" disabled>Next equation</button>
+    </div>
+
+    <p id="score" class="score">Rounds: 0 · Correct: 0 · Streak: 0</p>
+  </section>
+  <noscript><p style="text-align:center">This activity needs JavaScript turned on.</p></noscript>
+</main>
+
+<script>
+// === CORE START ===
+// Pure math, generator, formatting and graph-geometry functions.
+// No DOM access anywhere in this section, so a Node harness can
+// extract and eval it directly.
+
+var A_CHOICES = [1, 2, 3, -1, -2];
+
+function randInt(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function choice(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Pick the target case for the next round: roughly 40% two roots,
+// 20% one root, 40% zero roots, with the weights jittered each draw.
+function pickTargetCase() {
+  var w2 = 0.40 + (Math.random() - 0.5) * 0.10;
+  var w1 = 0.20 + (Math.random() - 0.5) * 0.06;
+  var w0 = 0.40 + (Math.random() - 0.5) * 0.10;
+  var total = w2 + w1 + w0;
+  var r = Math.random() * total;
+  if (r < w2) return 2;
+  if (r < w2 + w1) return 1;
+  return 0;
+}
+
+function discriminant(a, b, c) {
+  return b * b - 4 * a * c;
+}
+
+// Real roots of ax^2 + bx + c = 0, in ascending order.
+function solveRoots(a, b, c) {
+  var D = discriminant(a, b, c);
+  if (D < 0) return [];
+  if (D === 0) return [-b / (2 * a)];
+  var s = Math.sqrt(D);
+  var r1 = (-b - s) / (2 * a);
+  var r2 = (-b + s) / (2 * a);
+  return r1 <= r2 ? [r1, r2] : [r2, r1];
+}
+
+function vertexOf(a, b, c) {
+  var x = -b / (2 * a);
+  return { x: x, y: a * x * x + b * x + c };
+}
+
+// Display formatting: typographic minus sign, no rounding surprises.
+function fmtInt(n) {
+  return String(n).replace('-', '−');
+}
+
+function fmtRoot(r) {
+  if (Math.abs(r - Math.round(r)) < 1e-9) return fmtInt(Math.round(r));
+  return String(Math.round(r * 100) / 100).replace('-', '−');
+}
+
+function paren(n) {
+  return '(' + fmtInt(n) + ')';
+}
+
+function leadCoeff(a) {
+  if (a === 1) return '';
+  if (a === -1) return '−';
+  return fmtInt(a);
+}
+
+// "−3x^2 + 5x − 2 = 0" style HTML for standard form (sup tags for the 2).
+function formatStandardHTML(a, b, c) {
+  var s = leadCoeff(a) + 'x<sup>2</sup>';
+  if (b !== 0) {
+    s += b > 0 ? ' + ' : ' − ';
+    var ab = Math.abs(b);
+    s += (ab === 1 ? '' : fmtInt(ab)) + 'x';
+  }
+  if (c !== 0) {
+    s += c > 0 ? ' + ' : ' − ';
+    s += fmtInt(Math.abs(c));
+  }
+  return s + ' = 0';
+}
+
+// "(x + 2)^2 + 1 = 0" style HTML for the unexpanded vertex form a(x − h)^2 + k.
+function formatVertexHTML(a, h, k) {
+  var s = leadCoeff(a);
+  var inner;
+  if (h === 0) inner = 'x';
+  else if (h > 0) inner = 'x − ' + fmtInt(h);
+  else inner = 'x + ' + fmtInt(-h);
+  s += '(' + inner + ')<sup>2</sup>';
+  if (k > 0) s += ' + ' + fmtInt(k);
+  else if (k < 0) s += ' − ' + fmtInt(-k);
+  return s + ' = 0';
+}
+
+// Worked discriminant line with the actual a, b, c substituted.
+function discriminantHTML(a, b, c) {
+  var D = discriminant(a, b, c);
+  var b2 = b * b;
+  var ac4 = 4 * a * c;
+  var mid = fmtInt(b2) + (ac4 < 0 ? ' − (' + fmtInt(ac4) + ')' : ' − ' + fmtInt(ac4));
+  return 'D = b<sup>2</sup> − 4ac = ' + paren(b) + '<sup>2</sup> − 4' + paren(a) + paren(c) +
+         ' = ' + mid + ' = ' + fmtInt(D);
+}
+
+function conclusionSentence(a, b, c) {
+  var D = discriminant(a, b, c);
+  var roots = solveRoots(a, b, c);
+  if (D > 0) {
+    return 'D > 0, so there are 2 real roots: x = ' + fmtRoot(roots[0]) + ' and x = ' + fmtRoot(roots[1]) + '.';
+  }
+  if (D === 0) {
+    return 'D = 0, so there is exactly 1 real root (a double root): x = ' + fmtRoot(roots[0]) + '.';
+  }
+  return 'D < 0, so there are no real roots — the parabola never crosses the x-axis.';
+}
+
+// Deal one equation. The target case is chosen first, then integer
+// coefficients are constructed to produce exactly that case:
+//   2 roots: expand a(x − r1)(x − r2), r1 != r2
+//   1 root:  expand a(x − r)^2
+//   0 roots: expand a(x − h)^2 + k, with a and k the same sign, k != 0
+// Display form rotates: mostly standard form, sometimes c = 0, and
+// sometimes the unexpanded vertex form (1- and 0-root cases).
+function generateEquation() {
+  var target = pickTargetCase();
+  var a = choice(A_CHOICES);
+  var b = 0, c = 0;
+  var form = 'standard';
+  var vertexForm = null;
+
+  if (target === 2) {
+    var r1 = randInt(-6, 6);
+    var r2 = randInt(-6, 6);
+    if (Math.random() < 0.15) {
+      // c = 0 variety: one root is 0.
+      r2 = 0;
+      if (r1 === 0) r1 = choice([-3, 4]);
+    } else {
+      while (r2 === r1) r2 = randInt(-6, 6);
+    }
+    b = -a * (r1 + r2);
+    c = a * r1 * r2;
+  } else if (target === 1) {
+    var r = 0;
+    while (r === 0) r = randInt(-6, 6);
+    b = -2 * a * r;
+    c = a * r * r;
+    if (Math.random() < 0.30) {
+      form = 'vertex';
+      vertexForm = { a: a, h: r, k: 0 };
+    }
+  } else {
+    var h = randInt(-4, 4);
+    var k = (a > 0 ? 1 : -1) * randInt(1, 6);
+    b = -2 * a * h;
+    c = a * h * h + k;
+    if (Math.random() < 0.30) {
+      form = 'vertex';
+      vertexForm = { a: a, h: h, k: k };
+    }
+  }
+
+  var eq = {
+    a: a, b: b, c: c,
+    targetCase: target,
+    form: form,
+    vertexForm: vertexForm
+  };
+  eq.discriminant = discriminant(a, b, c);
+  eq.roots = solveRoots(a, b, c);
+  eq.vertex = vertexOf(a, b, c);
+  eq.eqHTML = form === 'vertex'
+    ? formatVertexHTML(vertexForm.a, vertexForm.h, vertexForm.k)
+    : formatStandardHTML(a, b, c);
+  eq.standardHTML = formatStandardHTML(a, b, c);
+  eq.discHTML = discriminantHTML(a, b, c);
+  eq.conclusion = conclusionSentence(a, b, c);
+  return eq;
+}
+
+// Graph geometry for the parabola y = ax^2 + bx + c: everything the
+// renderer needs as plain numbers/strings (viewBox 420 x 320).
+function graphModel(a, b, c) {
+  var W = 420, H = 320;
+  var v = vertexOf(a, b, c);
+  var D = discriminant(a, b, c);
+  var roots = solveRoots(a, b, c);
+  function f(x) { return a * x * x + b * x + c; }
+
+  var xs = [0, v.x].concat(roots);
+  var xmin = Math.min.apply(null, xs);
+  var xmax = Math.max.apply(null, xs);
+  var spanX = Math.max(xmax - xmin, 4);
+  xmin = xmin - spanX * 0.45 - 1;
+  xmax = xmax + spanX * 0.45 + 1;
+
+  var ys = [0, v.y, f(xmin), f(xmax)];
+  var ymin = Math.min.apply(null, ys);
+  var ymax = Math.max.apply(null, ys);
+  var spanY = Math.max(ymax - ymin, 4);
+  ymin = ymin - spanY * 0.18 - 0.5;
+  ymax = ymax + spanY * 0.18 + 0.5;
+
+  function px(x) { return (x - xmin) / (xmax - xmin) * W; }
+  function py(y) { return H - (y - ymin) / (ymax - ymin) * H; }
+
+  var d = '';
+  for (var i = 0; i <= 80; i++) {
+    var gx = xmin + (xmax - xmin) * i / 80;
+    d += (i === 0 ? 'M' : 'L') + px(gx).toFixed(1) + ' ' + py(f(gx)).toFixed(1) + ' ';
+  }
+
+  function niceStep(span) {
+    var raw = span / 6;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var norm = raw / mag;
+    var s;
+    if (norm < 1.5) s = 1;
+    else if (norm < 3.5) s = 2;
+    else if (norm < 7.5) s = 5;
+    else s = 10;
+    return s * mag;
+  }
+
+  function fmtTick(val) {
+    var s = Math.abs(val - Math.round(val)) < 1e-9
+      ? String(Math.round(val))
+      : String(Math.round(val * 100) / 100);
+    return s.replace('-', '−');
+  }
+
+  var stepX = niceStep(xmax - xmin);
+  var ticksX = [];
+  for (var tx = Math.ceil(xmin / stepX) * stepX; tx <= xmax + 1e-9; tx += stepX) {
+    ticksX.push({ v: tx, px: px(tx), label: fmtTick(tx) });
+  }
+  var stepY = niceStep(ymax - ymin);
+  var ticksY = [];
+  for (var ty = Math.ceil(ymin / stepY) * stepY; ty <= ymax + 1e-9; ty += stepY) {
+    ticksY.push({ v: ty, py: py(ty), label: ty === 0 ? '' : fmtTick(ty) });
+  }
+
+  var intercepts = [];
+  for (var j = 0; j < roots.length; j++) {
+    intercepts.push({ v: roots[j], px: px(roots[j]), py: py(0), label: fmtRoot(roots[j]) });
+  }
+
+  return {
+    W: W, H: H,
+    pathD: d,
+    xAxisPy: py(0),
+    yAxisPx: px(0),
+    ticksX: ticksX,
+    ticksY: ticksY,
+    intercepts: intercepts,
+    vertex: { x: v.x, y: v.y, px: px(v.x), py: py(v.y), labelX: fmtRoot(v.x), labelY: fmtRoot(v.y) },
+    doubleRoot: D === 0,
+    opensUp: a > 0
+  };
+}
+// === CORE END ===
+
+// ---- DOM layer (not used by the verification harness) ----
+
+var equationEl = document.getElementById('equation');
+var feedbackEl = document.getElementById('feedback');
+var verdictEl = document.getElementById('verdict');
+var standardLineEl = document.getElementById('standardLine');
+var discLineEl = document.getElementById('discLine');
+var conclusionEl = document.getElementById('conclusion');
+var graphEl = document.getElementById('graph');
+var scoreEl = document.getElementById('score');
+var nextBtn = document.getElementById('nextBtn');
+var answerBtns = Array.prototype.slice.call(document.querySelectorAll('.answer-btn'));
+
+var current = null;
+var answered = false;
+var rounds = 0, correctCount = 0, streak = 0;
+
+function caseLabel(n) {
+  if (n === 2) return '2 real roots';
+  if (n === 1) return '1 real root';
+  return '0 real roots';
+}
+
+function renderScore() {
+  scoreEl.textContent = 'Rounds: ' + rounds + ' · Correct: ' + correctCount + ' · Streak: ' + streak;
+}
+
+function ariaText(eq, g) {
+  var t = 'Graph of the parabola. It opens ' + (g.opensUp ? 'upward' : 'downward') +
+          '. Vertex at (' + g.vertex.labelX + ', ' + g.vertex.labelY + '). ';
+  if (eq.targetCase === 2) {
+    t += 'It crosses the x-axis at x = ' + fmtRoot(eq.roots[0]) + ' and x = ' + fmtRoot(eq.roots[1]) + '.';
+  } else if (eq.targetCase === 1) {
+    t += 'It touches the x-axis at x = ' + fmtRoot(eq.roots[0]) + ' (the vertex is on the axis).';
+  } else {
+    t += 'It never crosses the x-axis.';
+  }
+  return t;
+}
+
+function buildSVG(eq) {
+  var g = graphModel(eq.a, eq.b, eq.c);
+  var s = '<svg viewBox="0 0 ' + g.W + ' ' + g.H + '" role="img" aria-label="' + ariaText(eq, g) + '" xmlns="http://www.w3.org/2000/svg">';
+  var i, t;
+  for (i = 0; i < g.ticksX.length; i++) {
+    t = g.ticksX[i];
+    s += '<line class="grid" x1="' + t.px.toFixed(1) + '" y1="0" x2="' + t.px.toFixed(1) + '" y2="' + g.H + '"/>';
+  }
+  for (i = 0; i < g.ticksY.length; i++) {
+    t = g.ticksY[i];
+    s += '<line class="grid" x1="0" y1="' + t.py.toFixed(1) + '" x2="' + g.W + '" y2="' + t.py.toFixed(1) + '"/>';
+  }
+  s += '<line class="axis" x1="0" y1="' + g.xAxisPy.toFixed(1) + '" x2="' + g.W + '" y2="' + g.xAxisPy.toFixed(1) + '"/>';
+  s += '<line class="axis" x1="' + g.yAxisPx.toFixed(1) + '" y1="0" x2="' + g.yAxisPx.toFixed(1) + '" y2="' + g.H + '"/>';
+  for (i = 0; i < g.ticksX.length; i++) {
+    t = g.ticksX[i];
+    s += '<line class="tick" x1="' + t.px.toFixed(1) + '" y1="' + (g.xAxisPy - 4).toFixed(1) + '" x2="' + t.px.toFixed(1) + '" y2="' + (g.xAxisPy + 4).toFixed(1) + '"/>';
+    s += '<text class="tick-label" x="' + t.px.toFixed(1) + '" y="' + (g.xAxisPy + 17).toFixed(1) + '" text-anchor="middle">' + t.label + '</text>';
+  }
+  for (i = 0; i < g.ticksY.length; i++) {
+    t = g.ticksY[i];
+    s += '<line class="tick" x1="' + (g.yAxisPx - 4).toFixed(1) + '" y1="' + t.py.toFixed(1) + '" x2="' + (g.yAxisPx + 4).toFixed(1) + '" y2="' + t.py.toFixed(1) + '"/>';
+    if (t.label !== '') {
+      s += '<text class="tick-label" x="' + (g.yAxisPx - 7).toFixed(1) + '" y="' + t.py.toFixed(1) + '" text-anchor="end" dy="0.35em">' + t.label + '</text>';
+    }
+  }
+  s += '<path class="curve" d="' + g.pathD + '"/>';
+  for (i = 0; i < g.intercepts.length; i++) {
+    t = g.intercepts[i];
+    s += '<circle class="pt-intercept" cx="' + t.px.toFixed(1) + '" cy="' + t.py.toFixed(1) + '" r="5"/>';
+    s += '<text class="pt-label" x="' + t.px.toFixed(1) + '" y="' + (t.py - 11).toFixed(1) + '" text-anchor="middle">' + t.label + '</text>';
+  }
+  var vx = g.vertex.px, vy = g.vertex.py;
+  if (g.doubleRoot) {
+    s += '<circle class="pt-ring" cx="' + vx.toFixed(1) + '" cy="' + vy.toFixed(1) + '" r="10"/>';
+  } else {
+    s += '<circle class="pt-vertex" cx="' + vx.toFixed(1) + '" cy="' + vy.toFixed(1) + '" r="5"/>';
+  }
+  var anchor = vx > g.W * 0.68 ? 'end' : 'start';
+  var lx = vx > g.W * 0.68 ? vx - 10 : vx + 10;
+  var ly = vy < 26 ? vy + 20 : vy - 10;
+  s += '<text class="pt-label" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="' + anchor + '">vertex (' + g.vertex.labelX + ', ' + g.vertex.labelY + ')</text>';
+  s += '</svg>';
+  return s;
+}
+
+function deal() {
+  current = generateEquation();
+  answered = false;
+  equationEl.innerHTML = current.eqHTML;
+  feedbackEl.hidden = true;
+  standardLineEl.hidden = true;
+  answerBtns.forEach(function (btn) {
+    btn.disabled = false;
+    btn.classList.remove('correct');
+    btn.classList.remove('wrong');
+  });
+  nextBtn.disabled = true;
+}
+
+function answer(chosen) {
+  if (answered || !current) return;
+  answered = true;
+  rounds++;
+  var ok = chosen === current.targetCase;
+  if (ok) { correctCount++; streak++; } else { streak = 0; }
+
+  answerBtns.forEach(function (btn) {
+    var v = parseInt(btn.getAttribute('data-case'), 10);
+    btn.disabled = true;
+    if (v === current.targetCase) btn.classList.add('correct');
+    else if (v === chosen) btn.classList.add('wrong');
+  });
+
+  verdictEl.textContent = ok
+    ? 'Correct!'
+    : 'Not quite — the correct answer is ' + caseLabel(current.targetCase) + '.';
+  verdictEl.className = 'verdict ' + (ok ? 'good' : 'bad');
+
+  if (current.form === 'vertex') {
+    standardLineEl.innerHTML = 'Standard form: ' + current.standardHTML;
+    standardLineEl.hidden = false;
+  }
+  discLineEl.innerHTML = current.discHTML;
+  conclusionEl.textContent = current.conclusion;
+  graphEl.innerHTML = buildSVG(current);
+
+  feedbackEl.hidden = false;
+  nextBtn.disabled = false;
+  renderScore();
+  feedbackEl.focus();
+}
+
+answerBtns.forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    answer(parseInt(btn.getAttribute('data-case'), 10));
+  });
+});
+
+nextBtn.addEventListener('click', function () {
+  deal();
+  answerBtns[0].focus();
+});
+
+renderScore();
+deal();
+</script>
+</body>
+</html>
